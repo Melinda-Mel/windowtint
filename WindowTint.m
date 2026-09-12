@@ -1,5 +1,6 @@
 #import <AppKit/AppKit.h>
 #import <CoreGraphics/CoreGraphics.h>
+#import <CoreVideo/CoreVideo.h>
 #import <math.h>
 #import <unistd.h>
 
@@ -53,13 +54,34 @@
 @property(nonatomic, strong) NSMutableDictionary<NSNumber *, OverlayPanel *> *panels;
 @property(nonatomic, strong) NSStatusItem *statusItem;
 @property(nonatomic, strong) NSTimer *timer;
+@property(nonatomic) CVDisplayLinkRef displayLink;
+@property(nonatomic) BOOL refreshScheduled;
 @property(nonatomic, strong) NSMutableDictionary<NSNumber *, NSValue *> *lastFrames;
 @property(nonatomic, copy) NSArray<NSNumber *> *lastWindowOrder;
 @property(nonatomic) NSTimeInterval settleUntil;
 @property(nonatomic) BOOL panelsHiddenForTransition;
 @property(nonatomic) BOOL missionControlActive;
 @property(nonatomic) BOOL enabled;
+- (void)refresh;
 @end
+
+static CVReturn WindowTintDisplayLinkCallback(CVDisplayLinkRef displayLink,
+                                              const CVTimeStamp *now,
+                                              const CVTimeStamp *outputTime,
+                                              CVOptionFlags flagsIn,
+                                              CVOptionFlags *flagsOut,
+                                              void *context) {
+    WindowTintController *controller = (__bridge WindowTintController *)context;
+    @synchronized (controller) {
+        if (controller.refreshScheduled) return kCVReturnSuccess;
+        controller.refreshScheduled = YES;
+    }
+    dispatch_async(dispatch_get_main_queue(), ^{
+        @synchronized (controller) { controller.refreshScheduled = NO; }
+        [controller refresh];
+    });
+    return kCVReturnSuccess;
+}
 
 @implementation WindowTintController
 
@@ -80,13 +102,26 @@
     self.lastFrames = [NSMutableDictionary new];
     [NSApp setActivationPolicy:NSApplicationActivationPolicyAccessory];
     [self setupMenu];
-    self.timer = [NSTimer timerWithTimeInterval:(1.0 / 120.0) target:self selector:@selector(refresh) userInfo:nil repeats:YES];
-    self.timer.tolerance = 0;
-    [NSRunLoop.mainRunLoop addTimer:self.timer forMode:NSRunLoopCommonModes];
+    if (CVDisplayLinkCreateWithActiveCGDisplays(&_displayLink) == kCVReturnSuccess) {
+        CVDisplayLinkSetOutputCallback(_displayLink, WindowTintDisplayLinkCallback, (__bridge void *)self);
+        CVDisplayLinkStart(_displayLink);
+    } else {
+        self.timer = [NSTimer timerWithTimeInterval:(1.0 / 120.0) target:self selector:@selector(refresh) userInfo:nil repeats:YES];
+        self.timer.tolerance = 0;
+        [NSRunLoop.mainRunLoop addTimer:self.timer forMode:NSRunLoopCommonModes];
+    }
     NSNotificationCenter *workspaceNotifications = NSWorkspace.sharedWorkspace.notificationCenter;
     [workspaceNotifications addObserver:self selector:@selector(workspaceTransition:) name:NSWorkspaceDidActivateApplicationNotification object:nil];
     [workspaceNotifications addObserver:self selector:@selector(workspaceTransition:) name:NSWorkspaceActiveSpaceDidChangeNotification object:nil];
     [self refresh];
+}
+
+- (void)applicationWillTerminate:(NSNotification *)notification {
+    if (_displayLink) {
+        CVDisplayLinkStop(_displayLink);
+        CVDisplayLinkRelease(_displayLink);
+        _displayLink = NULL;
+    }
 }
 
 - (void)setupMenu {
@@ -131,7 +166,9 @@
             bounds.size.width <= 100 || bounds.size.height <= 100) continue;
 
         NSRunningApplication *app = [NSRunningApplication runningApplicationWithProcessIdentifier:ownerPID.intValue];
-        if (!app || app.activationPolicy == NSApplicationActivationPolicyProhibited) continue;
+        if (!app || app.activationPolicy == NSApplicationActivationPolicyProhibited ||
+            [app.bundleIdentifier isEqualToString:@"com.windowtint.app"] ||
+            [app.localizedName isEqualToString:@"WindowTint"]) continue;
         NSRect frame = NSInsetRect([self appKitFrameForCGFrame:bounds], -6, -6);
         NSValue *frameValue = [NSValue valueWithRect:frame];
         NSValue *previousFrame = self.lastFrames[number];
@@ -180,7 +217,7 @@
             panel = [self newOverlayPanel];
             self.panels[number] = panel;
         }
-        if (!NSEqualRects(panel.frame, frame)) [panel setFrame:frame display:YES];
+        if (!NSEqualRects(panel.frame, frame)) [panel setFrame:frame display:NO animate:NO];
         if (isNewPanel) {
             NSDictionary *style = [self styleForApplication:app];
             BorderView *view = (BorderView *)panel.contentView;

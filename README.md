@@ -1,42 +1,53 @@
-# WindowTint — Mission Control 彩色窗口标识
+# WindowTint — 在 Mission Control 里一眼认出窗口
 
-WindowTint 是一个轻量 macOS 菜单栏应用：只在 **Mission Control** 中为应用窗口绘制不拦截鼠标的彩色边框和名称，帮助你快速分辨 Codex、ChatGPT、WorkBuddy、Claude、飞书等窗口。回到正常工作窗口后，所有标识都会自动消失，不干扰视野或系统按钮。
+WindowTint 是一个轻量的 macOS 菜单栏应用。它只在 **Mission Control** 中为窗口加上不拦截鼠标的彩色边框和名称，让你快速区分 Codex、ChatGPT、WorkBuddy、Claude、飞书、浏览器等窗口；回到普通工作界面，标识会自动消失，不遮挡红黄绿窗口按钮，也不干扰办公。
 
-> WindowTint is a lightweight macOS menu-bar app that adds colored, non-interactive outlines and labels to windows in **Mission Control** only. All markers disappear in normal working windows.
+适合经常同时开很多应用窗口的人：AI 使用者、产品与运营、开发者、研究者，以及需要快速在多个项目之间切换的 Mac 用户。
 
-## 选哪个包？ / Choose a package
+## 直接使用（普通用户）
 
-| 你是谁 | 下载 | 适合什么 | 怎么用 |
-|---|---|---|---|
-| 普通 Mac 用户 | [`WindowTint-0.2.0-macos.zip`](dist/WindowTint-0.2.0-macos.zip) | 想立刻试用，不改代码 | 解压后双击 `WindowTint.app`；菜单栏图标可关闭或退出。 |
-| 开发者或想自定义的人 | [`WindowTint-0.2.0-source.zip`](dist/WindowTint-0.2.0-source.zip) 或直接克隆本仓库 | 改颜色、增加应用、自己构建 | 安装 Xcode Command Line Tools，运行 `./build-app.sh`，再打开生成的应用。 |
+1. 下载 [WindowTint-0.3.0-macos.zip](dist/WindowTint-0.3.0-macos.zip) 并解压。
+2. 双击同一文件夹里的 `install.command`。它会把应用装到你的 `~/Applications`，并设为登录后自动启动；不需要管理员密码。
+3. 打开 Mission Control（触控板上推或按你的快捷键），查看彩色标识。
 
-## 使用体验
+如果 macOS 第一次阻止打开，请确认下载来源可信，然后在应用上右键选择“打开”。菜单栏里的图标可以临时关闭边框或退出 WindowTint。
 
-- 进入 Mission Control：每个可见应用窗口会出现固定颜色和名称标签。
-- 选中并回到任意窗口：所有边框和标签消失，正常办公不受干扰。
-- 常见 AI 应用使用预设色；其它应用也会自动获得稳定颜色。
-- Mission Control 的窗口变化按最高约 120 次/秒跟随；退出动画期间会暂时隐藏，避免边框乱飞。
+## 工作方式与隐私
 
-## 本地构建
+- 只读取系统提供的公开窗口位置和应用名称，用于绘制边框。
+- 不读取屏幕内容、键盘输入、剪贴板、文件或账号信息。
+- 不需要辅助功能或屏幕录制权限。
+- 常见 AI 应用使用预设色；其它应用自动获得稳定颜色。
+- 边框在显示器刷新时更新；Mission Control 的动画由 macOS 合成器控制，极高速动画中仍可能有极轻微的位置差。
+
+## 给开发者：构建与定制
+
+需要 Xcode Command Line Tools：
 
 ```sh
-chmod +x build-app.sh
+chmod +x build-app.sh package-release.sh install.command
 ./build-app.sh
 open WindowTint.app
 ```
 
-已在 Apple Silicon Mac、macOS 26.6 上验证构建。应用只读取公开窗口位置；不会请求辅助功能或屏幕录制权限。
+改 `WindowTint.m` 中的 `styles` 就能增加应用的名称和固定颜色。要重新生成两个分享包：
 
-## 安全与发布状态
+```sh
+./package-release.sh
+```
 
-当前预构建试用包为本地临时签名，**尚未经过 Apple Developer ID 签名和 Apple 公证**。首次打开若被 macOS 拦截，请只对来自本仓库、你信任的副本右键选择“打开”。
+## 下载包说明
 
-面向普通用户的正式发布应先完成 Apple Developer ID 签名与公证，再提供 GitHub Release 的 ZIP 或 DMG。
+| 文件 | 给谁用 | 内容 |
+|---|---|---|
+| `WindowTint-0.3.0-macos.zip` | 想直接使用的 Mac 用户 | 应用、安装命令、中文说明 |
+| `WindowTint-0.3.0-source.zip` | 想改颜色或参与开发的人 | 完整源码、构建与打包脚本 |
 
-## 这不是一个 Skill
+## 发布状态
 
-WindowTint 是需要持续运行的原生 macOS 应用，才能创建窗口叠加层。Codex Skill 可以帮助开发者定制或构建它，但不能替代最终用户运行的 App。
+当前应用使用本地临时签名，尚未经过 Apple Developer ID 签名和 Apple 公证。它适合从本仓库下载、自己构建或技术用户试用；面向更广泛的普通用户发布前，建议完成 Developer ID 签名和公证。
+
+这不是一个 Codex Skill：它是一个需要持续运行的原生 macOS 应用，才能在 Mission Control 中创建窗口叠加层。
 
 ## License
 
